@@ -6,6 +6,7 @@ import pytest
 
 from lumi.agent import Agent, MaxStepsExceeded
 from lumi.config import AgentConfig
+from lumi.events import EventBus
 from lumi.llm.base import LLMResponse
 from lumi.messages import ToolCall
 from lumi.tools import create_tool_registry
@@ -84,3 +85,57 @@ def test_agent_max_steps() -> None:
     )
     with pytest.raises(MaxStepsExceeded):
         agent.run("loop forever")
+
+
+def test_agent_end_emitted_on_error() -> None:
+    llm = MockLLM(
+        [
+            LLMResponse(
+                content=None,
+                tool_calls=[
+                    ToolCall(id="1", name="read_file", arguments={"path": "a"})
+                ],
+                usage=None,
+                raw={},
+            )
+        ]
+    )
+    events = EventBus()
+    agent_ends: list[dict] = []
+    events.on("agent_end", lambda **kwargs: agent_ends.append(kwargs))
+
+    agent = Agent(
+        llm=llm,
+        tools=create_tool_registry(ToolsConfig(enabled=["read_file"])),
+        config=AgentConfig(max_steps=1),
+        system_prompt="test",
+        events=events,
+    )
+
+    with pytest.raises(MaxStepsExceeded):
+        agent.run("loop forever")
+
+    assert len(agent_ends) == 1
+    assert agent_ends[0]["error"] is not None
+    assert agent_ends[0]["steps"] == 1
+
+
+def test_agent_end_emitted_on_success() -> None:
+    llm = MockLLM([LLMResponse(content="Hello!", tool_calls=[], usage=None, raw={})])
+    events = EventBus()
+    agent_ends: list[dict] = []
+    events.on("agent_end", lambda **kwargs: agent_ends.append(kwargs))
+
+    agent = Agent(
+        llm=llm,
+        tools=create_tool_registry(ToolsConfig(enabled=["read_file"])),
+        config=AgentConfig(max_steps=5),
+        system_prompt="test",
+        events=events,
+    )
+    agent.run("hi")
+
+    assert len(agent_ends) == 1
+    assert agent_ends[0]["error"] is None
+    assert agent_ends[0]["result"] == "Hello!"
+

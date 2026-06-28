@@ -88,7 +88,29 @@ def truncate_messages(
     if budget <= 0:
         return system_msgs[:max_count]
 
-    return system_msgs + non_system[-budget:]
+    start = max(0, len(non_system) - budget)
+    while start > 0 and not _is_valid_message_window(non_system[start:]):
+        start -= 1
+
+    return system_msgs + non_system[start:]
+
+
+def _is_valid_message_window(messages: list[Message]) -> bool:
+    if not messages:
+        return True
+
+    if isinstance(messages[0], ToolMessage):
+        return False
+
+    pending_tool_calls: set[str] = set()
+    for msg in messages:
+        if isinstance(msg, AssistantMessage):
+            for tool_call in msg.tool_calls:
+                pending_tool_calls.add(tool_call.id)
+        elif isinstance(msg, ToolMessage):
+            pending_tool_calls.discard(msg.tool_call_id)
+
+    return not pending_tool_calls
 
 
 def _arguments_to_json(arguments: dict) -> str:

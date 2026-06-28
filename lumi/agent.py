@@ -41,6 +41,7 @@ class Agent:
         self.config = config
         self.events = events or EventBus()
         self._messages: list[Message] = [SystemMessage(content=system_prompt)]
+        self._tool_schemas = tools.schemas()
 
     @property
     def messages(self) -> list[Message]:
@@ -60,6 +61,7 @@ class Agent:
 
         result = ""
         steps = 0
+        error: Exception | None = None
 
         try:
             for step in range(self.config.max_steps):
@@ -71,12 +73,11 @@ class Agent:
                 context = truncate_messages(
                     self._messages, self.config.context_window
                 )
-                tool_schemas = self.tools.schemas()
 
                 self.events.emit(
-                    "llm_request", messages=context, tools=tool_schemas
+                    "llm_request", messages=context, tools=self._tool_schemas
                 )
-                response = self.llm.chat(context, tools=tool_schemas)
+                response = self.llm.chat(context, tools=self._tool_schemas)
                 self.events.emit("llm_response", response=response)
 
                 self._messages.append(
@@ -115,8 +116,10 @@ class Agent:
                 raise MaxStepsExceeded(self.config.max_steps, self._messages)
 
         except Exception as e:
+            error = e
             self.events.emit("error", error=e)
             raise
+        finally:
+            self.events.emit("agent_end", result=result, steps=steps, error=error)
 
-        self.events.emit("agent_end", result=result, steps=steps)
         return result
