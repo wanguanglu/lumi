@@ -28,6 +28,8 @@ class LoggingHandler:
         bus.on("step_complete", self._on_step_complete)
         bus.on("tool_start", self._on_tool_start)
         bus.on("tool_end", self._on_tool_end)
+        bus.on("server_tool_start", self._on_server_tool_start)
+        bus.on("server_tool_end", self._on_server_tool_end)
         bus.on("agent_end", self._on_agent_end)
         bus.on("error", self._on_error)
 
@@ -46,6 +48,14 @@ class LoggingHandler:
     def _on_tool_end(self, name: str, result: str, duration_ms: float, **_: object) -> None:
         if self.verbose:
             logger.info("← tool: %s (%d bytes, %.0fms)", name, len(result), duration_ms)
+
+    def _on_server_tool_start(self, name: str, type: str, **_: object) -> None:
+        if self.verbose:
+            logger.info("→ server: %s (%s)", name, type)
+
+    def _on_server_tool_end(self, name: str, results_count: int, **_: object) -> None:
+        if self.verbose:
+            logger.info("← server: %s (%d results)", name, results_count)
 
     def _on_agent_end(self, result: str, steps: int, **_: object) -> None:
         if self.verbose:

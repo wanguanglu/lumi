@@ -21,6 +21,13 @@ class Tool:
             },
         }
 
+    def schema_anthropic(self) -> dict:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "input_schema": self.parameters,
+        }
+
 
 class ToolRegistry:
     def __init__(self) -> None:
@@ -34,6 +41,9 @@ class ToolRegistry:
 
     def schemas(self) -> list[dict]:
         return [tool.schema() for tool in self._tools.values()]
+
+    def schemas_anthropic(self) -> list[dict]:
+        return [tool.schema_anthropic() for tool in self._tools.values()]
 
     def execute(self, name: str, arguments: dict) -> str:
         tool = self._tools.get(name)

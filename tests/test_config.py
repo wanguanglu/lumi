@@ -84,3 +84,49 @@ def test_deepseek_provider(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert config.llm.provider == "deepseek"
     assert config.llm.base_url == "https://api.deepseek.com/v1"
 
+
+def test_deepseek_anthropic_provider(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TEST_API_KEY", "sk-test")
+    path = tmp_path / "lumi.yaml"
+    path.write_text(
+        yaml.dump(
+            {
+                "llm": {
+                    "provider": "deepseek-anthropic",
+                    "api_key": "${TEST_API_KEY}",
+                    "model": "deepseek-v4-pro",
+                },
+                "tools": {
+                    "server": {"enabled": ["WebSearch"]},
+                },
+            }
+        )
+    )
+    config = load_config(path)
+    assert config.llm.provider == "deepseek-anthropic"
+    assert config.llm.base_url == "https://api.deepseek.com/anthropic"
+    assert config.tools.server.enabled == ["WebSearch"]
+
+
+def test_server_tools_require_anthropic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TEST_API_KEY", "sk-test")
+    path = tmp_path / "lumi.yaml"
+    path.write_text(
+        yaml.dump(
+            {
+                "llm": {
+                    "provider": "deepseek",
+                    "base_url": "https://api.deepseek.com/v1",
+                    "api_key": "key",
+                    "model": "deepseek-v4-pro",
+                },
+                "tools": {
+                    "server": {"enabled": ["WebSearch"]},
+                },
+            }
+        )
+    )
+    with pytest.raises(ConfigError, match="anthropic adapter"):
+        load_config(path)
+
+

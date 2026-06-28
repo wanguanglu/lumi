@@ -9,12 +9,16 @@ from urllib.parse import urlparse
 import yaml
 
 BUILTIN_TOOLS = frozenset({"Read", "Write", "Bash"})
+BUILTIN_SERVER_TOOLS = frozenset({"WebSearch"})
 ENV_VAR_PATTERN = re.compile(r"^\$\{([A-Z_][A-Z0-9_]*)\}$")
 
-# User-facing provider names. All listed providers use the OpenAI-compatible adapter.
 PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
     "openai": {"adapter": "openai", "base_url": "https://api.openai.com/v1"},
     "deepseek": {"adapter": "openai", "base_url": "https://api.deepseek.com/v1"},
+    "deepseek-anthropic": {
+        "adapter": "anthropic",
+        "base_url": "https://api.deepseek.com/anthropic",
+    },
     "ollama": {"adapter": "openai", "base_url": "http://localhost:11434/v1"},
 }
 
@@ -55,11 +59,19 @@ class AgentConfig:
 
 
 @dataclass
+class ServerToolsConfig:
+    enabled: list[str] = field(default_factory=list)
+    web_search_type: str = "web_search_20260209"
+    web_search_max_uses: int = 5
+
+
+@dataclass
 class ToolsConfig:
     enabled: list[str] = field(default_factory=lambda: ["Read", "Write", "Bash"])
     workspace: str = "."
     bash_timeout: int = 30
     bash_allowed_commands: list[str] = field(default_factory=list)
+    server: ServerToolsConfig = field(default_factory=ServerToolsConfig)
 
 
 @dataclass
@@ -135,6 +147,8 @@ def _parse_config(data: dict) -> LumiConfig:
     tools_data = data.get("tools", {})
     logging_data = data.get("logging", {})
     bash_data = tools_data.get("bash", {})
+    server_data = tools_data.get("server", {})
+    web_search_data = server_data.get("web_search", {})
 
     provider = str(llm_data.get("provider", ""))
     defaults = PROVIDER_DEFAULTS.get(provider)
@@ -165,6 +179,11 @@ def _parse_config(data: dict) -> LumiConfig:
         workspace=str(tools_data.get("workspace", ".")),
         bash_timeout=int(bash_data.get("timeout", 30)),
         bash_allowed_commands=list(bash_data.get("allowed_commands", [])),
+        server=ServerToolsConfig(
+            enabled=list(server_data.get("enabled", [])),
+            web_search_type=str(web_search_data.get("type", "web_search_20260209")),
+            web_search_max_uses=int(web_search_data.get("max_uses", 5)),
+        ),
     )
 
     logging = LoggingConfig(
@@ -192,6 +211,18 @@ def validate_config(config: LumiConfig) -> None:
     for name in config.tools.enabled:
         if name not in BUILTIN_TOOLS:
             raise ConfigError(f"unknown tool: {name} (available: {', '.join(sorted(BUILTIN_TOOLS))})")
+
+    for name in config.tools.server.enabled:
+        if name not in BUILTIN_SERVER_TOOLS:
+            raise ConfigError(
+                f"unknown server tool: {name} "
+                f"(available: {', '.join(sorted(BUILTIN_SERVER_TOOLS))})"
+            )
+
+    if config.tools.server.enabled and resolve_adapter(config.llm.provider) != "anthropic":
+        raise ConfigError(
+            "server tools require anthropic adapter (use provider: deepseek-anthropic)"
+        )
 
     workspace = Path(config.tools.workspace)
     if not workspace.exists():

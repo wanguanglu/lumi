@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pytest
 
@@ -14,8 +14,14 @@ from lumi.config import ToolsConfig
 
 
 @dataclass
+class MockLLMConfig:
+    provider: str = "deepseek"
+
+
+@dataclass
 class MockLLM:
     responses: list[LLMResponse]
+    config: MockLLMConfig = field(default_factory=MockLLMConfig)
 
     def __post_init__(self) -> None:
         self._call = 0

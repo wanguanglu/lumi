@@ -73,6 +73,26 @@ lumi -v run "列出当前目录的 Python 文件"
 | `Read` | Read file contents (max 100KB, confined to workspace) |
 | `Write` | Write file within workspace, auto-create directories |
 | `Bash` | Run bash command in workspace directory |
+| `WebSearch` | Search the web (server-side, requires `deepseek-anthropic`) |
+
+### Web Search
+
+Enable DeepSeek web search via the Anthropic API endpoint:
+
+```yaml
+llm:
+  provider: deepseek-anthropic
+  api_key: ${DEEPSEEK_API_KEY}
+  model: deepseek-v4-pro
+  timeout: 120
+
+tools:
+  server:
+    enabled: [WebSearch]
+    web_search:
+      type: web_search_20260209
+      max_uses: 5
+```
 
 ## Development
 

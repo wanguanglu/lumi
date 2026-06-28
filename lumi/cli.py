@@ -16,6 +16,7 @@ from lumi.llm.base import LLMError
 from lumi.llm import create_llm
 from lumi.prompts_loader import load_prompt
 from lumi.tools import create_tool_registry
+from lumi.tools.server import create_server_tool_registry
 
 app = typer.Typer(
     name="lumi",
@@ -61,9 +62,11 @@ def _build_agent(config_path: Path | None, verbose: bool) -> Agent:
     if verbose:
         LoggingHandler(verbose=True).attach(events)
 
+    server_tools = create_server_tool_registry(config.tools.server)
     return Agent(
-        llm=create_llm(config.llm),
+        llm=create_llm(config.llm, server_tools=server_tools, events=events),
         tools=create_tool_registry(config.tools),
+        server_tools=server_tools,
         config=config.agent,
         system_prompt=load_prompt(config.agent.system_prompt),
         events=events,
@@ -93,6 +96,13 @@ def _config_to_dict(config_path: Path | None) -> dict:
             "bash": {
                 "timeout": config.tools.bash_timeout,
                 "allowed_commands": config.tools.bash_allowed_commands,
+            },
+            "server": {
+                "enabled": config.tools.server.enabled,
+                "web_search": {
+                    "type": config.tools.server.web_search_type,
+                    "max_uses": config.tools.server.web_search_max_uses,
+                },
             },
         },
         "logging": {
@@ -225,6 +235,15 @@ def tools_list(
             tool = registry.get(name)
             if tool:
                 console.print(f"[bold]{name}[/bold]: {tool.description}")
+
+        server_registry = create_server_tool_registry(config_obj.tools.server)
+        for name in server_registry.names:
+            tool = server_registry.get(name)
+            if tool:
+                console.print(
+                    f"[bold]{name}[/bold] [dim](server)[/dim]: "
+                    f"Search the web for current information"
+                )
     except ConfigError as e:
         console.print(f"[red]Config error:[/red] {e}")
         raise typer.Exit(1) from e

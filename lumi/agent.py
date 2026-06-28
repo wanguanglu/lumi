@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from lumi.config import AgentConfig
+from lumi.config import AgentConfig, resolve_adapter
 from lumi.events import EventBus, measure_ms
 from lumi.llm.base import LLM
 from lumi.messages import (
@@ -14,6 +14,7 @@ from lumi.messages import (
     truncate_messages,
 )
 from lumi.tools.registry import ToolRegistry
+from lumi.tools.server.registry import ServerToolRegistry
 
 
 class AgentError(Exception):
@@ -34,6 +35,7 @@ class Agent:
         tools: ToolRegistry,
         config: AgentConfig,
         system_prompt: str,
+        server_tools: ServerToolRegistry | None = None,
         events: EventBus | None = None,
     ) -> None:
         self.llm = llm
@@ -42,6 +44,8 @@ class Agent:
         self.events = events or EventBus()
         self._messages: list[Message] = [SystemMessage(content=system_prompt)]
         self._tool_schemas = tools.schemas()
+        self._server_tool_schemas = server_tools.schemas() if server_tools else []
+        self._adapter = resolve_adapter(llm.config.provider)
 
     @property
     def messages(self) -> list[Message]:
@@ -73,11 +77,12 @@ class Agent:
                 context = truncate_messages(
                     self._messages, self.config.context_window
                 )
+                tool_schemas = self._all_tool_schemas()
 
                 self.events.emit(
-                    "llm_request", messages=context, tools=self._tool_schemas
+                    "llm_request", messages=context, tools=tool_schemas
                 )
-                response = self.llm.chat(context, tools=self._tool_schemas)
+                response = self.llm.chat(context, tools=tool_schemas)
                 self.events.emit("llm_response", response=response)
 
                 self._messages.append(
@@ -123,3 +128,8 @@ class Agent:
             self.events.emit("agent_end", result=result, steps=steps, error=error)
 
         return result
+
+    def _all_tool_schemas(self) -> list[dict]:
+        if self._adapter == "anthropic":
+            return self.tools.schemas_anthropic() + self._server_tool_schemas
+        return self._tool_schemas

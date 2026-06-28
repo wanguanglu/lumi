@@ -19,6 +19,7 @@ class LLMResponse:
     tool_calls: list[ToolCall]
     usage: TokenUsage | None
     raw: dict
+    server_tool_uses: int = 0
 
 
 class LLMError(Exception):
