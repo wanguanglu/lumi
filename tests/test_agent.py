@@ -30,7 +30,7 @@ def test_agent_completes_without_tools() -> None:
     llm = MockLLM([LLMResponse(content="Hello!", tool_calls=[], usage=None, raw={})])
     agent = Agent(
         llm=llm,
-        tools=create_tool_registry(ToolsConfig(enabled=["read_file"])),
+        tools=create_tool_registry(ToolsConfig(enabled=["Read"])),
         config=AgentConfig(max_steps=5),
         system_prompt="test",
     )
@@ -44,7 +44,7 @@ def test_agent_tool_loop() -> None:
             LLMResponse(
                 content=None,
                 tool_calls=[
-                    ToolCall(id="1", name="read_file", arguments={"path": "x.txt"})
+                    ToolCall(id="1", name="Read", arguments={"path": "x.txt"})
                 ],
                 usage=None,
                 raw={},
@@ -54,7 +54,7 @@ def test_agent_tool_loop() -> None:
     )
     agent = Agent(
         llm=llm,
-        tools=create_tool_registry(ToolsConfig(enabled=["read_file"])),
+        tools=create_tool_registry(ToolsConfig(enabled=["Read"])),
         config=AgentConfig(max_steps=5),
         system_prompt="test",
     )
@@ -69,7 +69,7 @@ def test_agent_max_steps() -> None:
             LLMResponse(
                 content=None,
                 tool_calls=[
-                    ToolCall(id="1", name="read_file", arguments={"path": "a"})
+                    ToolCall(id="1", name="Read", arguments={"path": "a"})
                 ],
                 usage=None,
                 raw={},
@@ -79,7 +79,7 @@ def test_agent_max_steps() -> None:
     )
     agent = Agent(
         llm=llm,
-        tools=create_tool_registry(ToolsConfig(enabled=["read_file"])),
+        tools=create_tool_registry(ToolsConfig(enabled=["Read"])),
         config=AgentConfig(max_steps=2),
         system_prompt="test",
     )
@@ -93,7 +93,7 @@ def test_agent_end_emitted_on_error() -> None:
             LLMResponse(
                 content=None,
                 tool_calls=[
-                    ToolCall(id="1", name="read_file", arguments={"path": "a"})
+                    ToolCall(id="1", name="Read", arguments={"path": "a"})
                 ],
                 usage=None,
                 raw={},
@@ -106,7 +106,7 @@ def test_agent_end_emitted_on_error() -> None:
 
     agent = Agent(
         llm=llm,
-        tools=create_tool_registry(ToolsConfig(enabled=["read_file"])),
+        tools=create_tool_registry(ToolsConfig(enabled=["Read"])),
         config=AgentConfig(max_steps=1),
         system_prompt="test",
         events=events,
@@ -128,7 +128,7 @@ def test_agent_end_emitted_on_success() -> None:
 
     agent = Agent(
         llm=llm,
-        tools=create_tool_registry(ToolsConfig(enabled=["read_file"])),
+        tools=create_tool_registry(ToolsConfig(enabled=["Read"])),
         config=AgentConfig(max_steps=5),
         system_prompt="test",
         events=events,

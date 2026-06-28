@@ -89,9 +89,10 @@ def _config_to_dict(config_path: Path | None) -> dict:
         },
         "tools": {
             "enabled": config.tools.enabled,
-            "shell": {
-                "timeout": config.tools.shell_timeout,
-                "allowed_commands": config.tools.shell_allowed_commands,
+            "workspace": config.tools.workspace,
+            "bash": {
+                "timeout": config.tools.bash_timeout,
+                "allowed_commands": config.tools.bash_allowed_commands,
             },
         },
         "logging": {

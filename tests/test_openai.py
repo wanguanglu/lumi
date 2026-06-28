@@ -60,7 +60,7 @@ def test_chat_tool_calls(httpx_mock, llm_config: LLMConfig) -> None:
                                 "id": "call_1",
                                 "type": "function",
                                 "function": {
-                                    "name": "read_file",
+                                    "name": "Read",
                                     "arguments": '{"path": "README.md"}',
                                 },
                             }
@@ -78,7 +78,7 @@ def test_chat_tool_calls(httpx_mock, llm_config: LLMConfig) -> None:
         provider.close()
 
     assert len(response.tool_calls) == 1
-    assert response.tool_calls[0].name == "read_file"
+    assert response.tool_calls[0].name == "Read"
     assert response.tool_calls[0].arguments == {"path": "README.md"}
 
 

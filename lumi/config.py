@@ -8,7 +8,13 @@ from urllib.parse import urlparse
 
 import yaml
 
-BUILTIN_TOOLS = frozenset({"read_file", "write_file", "run_shell"})
+BUILTIN_TOOLS = frozenset({"Read", "Write", "Bash"})
+TOOL_ALIASES = {
+    "read_file": "Read",
+    "write_file": "Write",
+    "run_shell": "Bash",
+    "bash": "Bash",
+}
 ENV_VAR_PATTERN = re.compile(r"^\$\{([A-Z_][A-Z0-9_]*)\}$")
 
 # User-facing provider names. All listed providers use the OpenAI-compatible adapter.
@@ -56,9 +62,10 @@ class AgentConfig:
 
 @dataclass
 class ToolsConfig:
-    enabled: list[str] = field(default_factory=lambda: ["read_file", "write_file", "run_shell"])
-    shell_timeout: int = 30
-    shell_allowed_commands: list[str] = field(default_factory=list)
+    enabled: list[str] = field(default_factory=lambda: ["Read", "Write", "Bash"])
+    workspace: str = "."
+    bash_timeout: int = 30
+    bash_allowed_commands: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -133,7 +140,7 @@ def _parse_config(data: dict) -> LumiConfig:
     agent_data = data.get("agent", {})
     tools_data = data.get("tools", {})
     logging_data = data.get("logging", {})
-    shell_data = tools_data.get("shell", {})
+    bash_data = tools_data.get("bash", tools_data.get("shell", {}))
 
     provider = str(llm_data.get("provider", ""))
     defaults = PROVIDER_DEFAULTS.get(provider)
@@ -157,12 +164,14 @@ def _parse_config(data: dict) -> LumiConfig:
 
     enabled = tools_data.get("enabled")
     if enabled is None:
-        enabled = ["read_file", "write_file", "run_shell"]
+        enabled = ["Read", "Write", "Bash"]
+    enabled = [TOOL_ALIASES.get(name, name) for name in enabled]
 
     tools = ToolsConfig(
         enabled=list(enabled),
-        shell_timeout=int(shell_data.get("timeout", 30)),
-        shell_allowed_commands=list(shell_data.get("allowed_commands", [])),
+        workspace=str(tools_data.get("workspace", ".")),
+        bash_timeout=int(bash_data.get("timeout", 30)),
+        bash_allowed_commands=list(bash_data.get("allowed_commands", [])),
     )
 
     logging = LoggingConfig(
@@ -190,6 +199,12 @@ def validate_config(config: LumiConfig) -> None:
     for name in config.tools.enabled:
         if name not in BUILTIN_TOOLS:
             raise ConfigError(f"unknown tool: {name} (available: {', '.join(sorted(BUILTIN_TOOLS))})")
+
+    workspace = Path(config.tools.workspace)
+    if not workspace.exists():
+        raise ConfigError(f"tools.workspace does not exist: {workspace}")
+    if not workspace.is_dir():
+        raise ConfigError(f"tools.workspace is not a directory: {workspace}")
 
 
 def load_config(path: Path | None = None) -> LumiConfig:

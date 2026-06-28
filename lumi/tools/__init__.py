@@ -1,19 +1,21 @@
 from __future__ import annotations
 
-from lumi.config import ToolsConfig
-from lumi.tools.filesystem import read_file_tool, write_file_tool
-from lumi.tools.registry import ToolRegistry
-from lumi.tools.shell import make_run_shell_tool
+from pathlib import Path
 
-BUILTINS = {
-    "read_file": read_file_tool,
-    "write_file": write_file_tool,
-}
+from lumi.config import ToolsConfig
+from lumi.tools.bash import make_bash_tool
+from lumi.tools.filesystem import make_read_tool, make_write_tool
+from lumi.tools.registry import ToolRegistry
 
 
 def create_tool_registry(config: ToolsConfig) -> ToolRegistry:
+    workspace = Path(config.workspace).resolve()
     registry = ToolRegistry()
-    builtins = {**BUILTINS, "run_shell": make_run_shell_tool(config)}
+    builtins = {
+        "Read": make_read_tool(workspace),
+        "Write": make_write_tool(workspace),
+        "Bash": make_bash_tool(config, workspace),
+    }
 
     for name in config.enabled:
         registry.register(builtins[name])

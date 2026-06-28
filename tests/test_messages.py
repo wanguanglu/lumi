@@ -17,13 +17,13 @@ def test_to_api_format() -> None:
         UserMessage(content="hello"),
         AssistantMessage(
             content=None,
-            tool_calls=[ToolCall(id="1", name="read_file", arguments={"path": "a"})],
+            tool_calls=[ToolCall(id="1", name="Read", arguments={"path": "a"})],
         ),
         ToolMessage(tool_call_id="1", content="file content"),
     ]
     api = to_api_format(messages)
     assert api[0]["role"] == "system"
-    assert api[2]["tool_calls"][0]["function"]["name"] == "read_file"
+    assert api[2]["tool_calls"][0]["function"]["name"] == "Read"
 
 
 def test_truncate_keeps_system() -> None:
@@ -40,7 +40,7 @@ def test_truncate_preserves_tool_pairs() -> None:
         UserMessage(content="first"),
         AssistantMessage(
             content=None,
-            tool_calls=[ToolCall(id="1", name="read_file", arguments={"path": "a"})],
+            tool_calls=[ToolCall(id="1", name="Read", arguments={"path": "a"})],
         ),
         ToolMessage(tool_call_id="1", content="a"),
         UserMessage(content="second"),
@@ -61,7 +61,7 @@ def test_truncate_expands_to_complete_tool_turn() -> None:
         UserMessage(content="new"),
         AssistantMessage(
             content=None,
-            tool_calls=[ToolCall(id="2", name="read_file", arguments={"path": "b"})],
+            tool_calls=[ToolCall(id="2", name="Read", arguments={"path": "b"})],
         ),
         ToolMessage(tool_call_id="2", content="b"),
         UserMessage(content="latest"),

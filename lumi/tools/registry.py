@@ -39,6 +39,8 @@ class ToolRegistry:
         tool = self._tools.get(name)
         if tool is None:
             return f"Error: unknown tool '{name}'"
+        if not isinstance(arguments, dict):
+            return f"Error: arguments must be a dict, got {type(arguments).__name__}"
         try:
             return tool.handler(**arguments)
         except TypeError as e:

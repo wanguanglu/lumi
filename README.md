@@ -68,9 +68,9 @@ lumi -v run "列出当前目录的 Python 文件"
 
 | Tool | Description |
 |------|-------------|
-| `read_file` | Read file contents (max 100KB) |
-| `write_file` | Write file, auto-create directories |
-| `run_shell` | Execute shell command |
+| `Read` | Read file contents (max 100KB, confined to workspace) |
+| `Write` | Write file within workspace, auto-create directories |
+| `Bash` | Run bash command in workspace directory |
 
 ## Development
 

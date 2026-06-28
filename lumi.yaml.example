@@ -15,11 +15,12 @@ agent:
   context_window: 20
 
 tools:
+  workspace: .              # all file/shell operations are confined here
   enabled:
-    - read_file
-    - write_file
-    - run_shell
-  shell:
+    - Read
+    - Write
+    - Bash
+  bash:
     timeout: 30
     allowed_commands: []   # empty = allow all (dev mode)
 

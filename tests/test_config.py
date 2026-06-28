@@ -21,7 +21,7 @@ def config_file(tmp_path: Path) -> Path:
                     "model": "gpt-4o",
                 },
                 "agent": {"max_steps": 10},
-                "tools": {"enabled": ["read_file", "write_file"]},
+                "tools": {"enabled": ["Read", "Write"]},
             }
         )
     )
@@ -34,7 +34,7 @@ def test_load_config(config_file: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert config.llm.model == "gpt-4o"
     assert config.llm.api_key == "sk-test-key"
     assert config.agent.max_steps == 10
-    assert config.tools.enabled == ["read_file", "write_file"]
+    assert config.tools.enabled == ["Read", "Write"]
 
 
 def test_missing_env_var(config_file: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -83,4 +83,30 @@ def test_deepseek_provider(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     config = load_config(path)
     assert config.llm.provider == "deepseek"
     assert config.llm.base_url == "https://api.deepseek.com/v1"
+
+
+def test_legacy_tool_name_aliases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TEST_API_KEY", "sk-test")
+    path = tmp_path / "lumi.yaml"
+    path.write_text(
+        yaml.dump(
+            {
+                "llm": {
+                    "provider": "openai",
+                    "base_url": "https://api.openai.com/v1",
+                    "api_key": "key",
+                    "model": "gpt-4o",
+                },
+                "tools": {
+                    "enabled": ["read_file", "run_shell"],
+                    "shell": {"timeout": 10, "allowed_commands": ["echo"]},
+                },
+            }
+        )
+    )
+    config = load_config(path)
+    assert config.tools.enabled == ["Read", "Bash"]
+    assert config.tools.bash_timeout == 10
+    assert config.tools.bash_allowed_commands == ["echo"]
+
 

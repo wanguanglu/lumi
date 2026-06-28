@@ -2,43 +2,116 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from lumi.config import ToolsConfig
 from lumi.tools import create_tool_registry
-from lumi.tools.filesystem import read_file, write_file
+from lumi.tools.workspace import resolve_path
 
 
-def test_read_file(tmp_path: Path) -> None:
-    f = tmp_path / "hello.txt"
-    f.write_text("hello world")
-    assert read_file(str(f)) == "hello world"
+@pytest.fixture
+def workspace(tmp_path: Path) -> Path:
+    return tmp_path
 
 
-def test_read_file_not_found() -> None:
-    assert "Error: file not found" in read_file("/nonexistent/path.txt")
+def test_resolve_path_relative(workspace: Path) -> None:
+    target, error = resolve_path(workspace, "src/main.py")
+    assert error is None
+    assert target == (workspace / "src/main.py").resolve()
 
 
-def test_write_file(tmp_path: Path) -> None:
-    path = tmp_path / "sub" / "out.txt"
-    result = write_file(str(path), "content")
+def test_resolve_path_blocks_traversal(workspace: Path) -> None:
+    _, error = resolve_path(workspace, "../outside.txt")
+    assert error is not None
+    assert "outside workspace" in error
+
+
+def test_resolve_path_blocks_absolute_outside(workspace: Path) -> None:
+    _, error = resolve_path(workspace, "/etc/passwd")
+    assert error is not None
+    assert "outside workspace" in error
+
+
+def test_read_tool(workspace: Path) -> None:
+    file_path = workspace / "hello.txt"
+    file_path.write_text("hello world")
+    registry = create_tool_registry(ToolsConfig(enabled=["Read"], workspace=str(workspace)))
+    assert registry.execute("Read", {"path": "hello.txt"}) == "hello world"
+
+
+def test_read_tool_not_found(workspace: Path) -> None:
+    registry = create_tool_registry(ToolsConfig(enabled=["Read"], workspace=str(workspace)))
+    result = registry.execute("Read", {"path": "missing.txt"})
+    assert "Error: file not found" in result
+
+
+def test_read_tool_blocks_traversal(workspace: Path) -> None:
+    outside = workspace.parent / "outside.txt"
+    outside.write_text("secret")
+    registry = create_tool_registry(ToolsConfig(enabled=["Read"], workspace=str(workspace)))
+    result = registry.execute("Read", {"path": "../outside.txt"})
+    assert "outside workspace" in result
+
+
+def test_read_tool_too_large(workspace: Path) -> None:
+    large = workspace / "large.txt"
+    large.write_text("x" * (100 * 1024 + 1))
+    registry = create_tool_registry(ToolsConfig(enabled=["Read"], workspace=str(workspace)))
+    result = registry.execute("Read", {"path": "large.txt"})
+    assert "too large" in result
+
+
+def test_write_tool(workspace: Path) -> None:
+    registry = create_tool_registry(ToolsConfig(enabled=["Write"], workspace=str(workspace)))
+    result = registry.execute("Write", {"path": "sub/out.txt", "content": "content"})
     assert "Successfully wrote" in result
-    assert path.read_text() == "content"
+    assert (workspace / "sub/out.txt").read_text() == "content"
 
 
-def test_shell_whitelist() -> None:
-    config = ToolsConfig(
-        enabled=["run_shell"],
-        shell_timeout=5,
-        shell_allowed_commands=["echo"],
+def test_write_tool_blocks_traversal(workspace: Path) -> None:
+    registry = create_tool_registry(ToolsConfig(enabled=["Write"], workspace=str(workspace)))
+    result = registry.execute(
+        "Write", {"path": "../escape.txt", "content": "bad"}
     )
-    registry = create_tool_registry(config)
-    result = registry.execute("run_shell", {"command": "echo hi"})
+    assert "outside workspace" in result
+
+
+def test_bash_runs_in_workspace(workspace: Path) -> None:
+    (workspace / "marker.txt").write_text("ok")
+    registry = create_tool_registry(
+        ToolsConfig(
+            enabled=["Bash"],
+            workspace=str(workspace),
+            bash_allowed_commands=["ls"],
+        )
+    )
+    result = registry.execute("Bash", {"command": "ls marker.txt"})
+    assert "marker.txt" in result
+
+
+def test_bash_whitelist(workspace: Path) -> None:
+    registry = create_tool_registry(
+        ToolsConfig(
+            enabled=["Bash"],
+            workspace=str(workspace),
+            bash_timeout=5,
+            bash_allowed_commands=["echo"],
+        )
+    )
+    result = registry.execute("Bash", {"command": "echo hi"})
     assert "hi" in result
 
-    blocked = registry.execute("run_shell", {"command": "rm -rf /"})
+    blocked = registry.execute("Bash", {"command": "rm -rf /"})
     assert "not allowed" in blocked
 
 
-def test_unknown_tool() -> None:
-    registry = create_tool_registry(ToolsConfig(enabled=["read_file"]))
+def test_unknown_tool(workspace: Path) -> None:
+    registry = create_tool_registry(ToolsConfig(enabled=["Read"], workspace=str(workspace)))
     result = registry.execute("missing", {})
     assert "unknown tool" in result
+
+
+def test_invalid_arguments_type(workspace: Path) -> None:
+    registry = create_tool_registry(ToolsConfig(enabled=["Read"], workspace=str(workspace)))
+    result = registry.execute("Read", "not-a-dict")  # type: ignore[arg-type]
+    assert "arguments must be a dict" in result
