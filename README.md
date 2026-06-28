@@ -48,6 +48,8 @@ lumi run "读取 README.md 并总结内容"
 
 # Interactive chat
 lumi chat
+# or simply
+lumi
 
 # List tools
 lumi tools list

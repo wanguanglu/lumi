@@ -20,7 +20,6 @@ from lumi.tools import create_tool_registry
 app = typer.Typer(
     name="lumi",
     help="A minimal LLM agent harness",
-    no_args_is_help=True,
 )
 config_app = typer.Typer(name="config", help="Configuration commands")
 tools_app = typer.Typer(name="tools", help="Tool management")
@@ -28,6 +27,17 @@ app.add_typer(config_app)
 app.add_typer(tools_app)
 
 console = Console()
+
+
+@app.callback(invoke_without_command=True)
+def app_callback(
+    ctx: typer.Context,
+    config: Annotated[Path | None, typer.Option("--config", help="Config file path")] = None,
+    verbose: Annotated[bool, typer.Option("-v", "--verbose", help="Verbose output")] = False,
+) -> None:
+    """A minimal LLM agent harness. Run without a subcommand to start chat."""
+    if ctx.invoked_subcommand is None:
+        _run_chat(config, verbose)
 
 
 def _format_llm_error(error: LLMError) -> str:
@@ -123,6 +133,10 @@ def chat(
     verbose: Annotated[bool, typer.Option("-v", "--verbose", help="Verbose output")] = False,
 ) -> None:
     """Interactive chat mode."""
+    _run_chat(config, verbose)
+
+
+def _run_chat(config: Path | None, verbose: bool) -> None:
     try:
         agent = _build_agent(config, verbose)
     except ConfigError as e:
