@@ -30,6 +30,13 @@ app.add_typer(tools_app)
 console = Console()
 
 
+def _format_llm_error(error: LLMError) -> str:
+    message = str(error)
+    if error.body:
+        message = f"{message}\n{error.body}"
+    return message
+
+
 def _setup_logging(level: str) -> None:
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
@@ -103,7 +110,7 @@ def run(
         console.print(f"[red]Max steps exceeded ({e.max_steps})[/red]")
         raise typer.Exit(1) from e
     except LLMError as e:
-        console.print(f"[red]LLM error:[/red] {e}")
+        console.print(f"[red]LLM error:[/red] {_format_llm_error(e)}")
         raise typer.Exit(1) from e
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted[/yellow]")
@@ -143,7 +150,7 @@ def chat(
         except MaxStepsExceeded as e:
             console.print(f"[red]Max steps exceeded ({e.max_steps})[/red]")
         except LLMError as e:
-            console.print(f"[red]LLM error:[/red] {e}")
+            console.print(f"[red]LLM error:[/red] {_format_llm_error(e)}")
 
 
 @config_app.command("show")

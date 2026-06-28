@@ -21,18 +21,21 @@ cp lumi.yaml.example lumi.yaml
 export OPENAI_API_KEY=sk-...
 ```
 
-Lumi uses any **OpenAI-compatible** API. Examples:
+Lumi uses any **OpenAI-compatible** API. Set `provider` to the vendor name:
 
 ```yaml
+# DeepSeek
+provider: deepseek
+base_url: https://api.deepseek.com/v1   # optional, auto-filled for deepseek
+model: deepseek-chat
+
 # OpenAI
-base_url: https://api.openai.com/v1
+provider: openai
+model: gpt-4o
 
 # Ollama (local)
-base_url: http://localhost:11434/v1
-api_key: ollama
-
-# DeepSeek
-base_url: https://api.deepseek.com/v1
+provider: ollama
+model: llama3.1
 ```
 
 Config lookup order: `--config` → `LUMI_CONFIG` → `./lumi.yaml` → `~/.config/lumi/lumi.yaml`

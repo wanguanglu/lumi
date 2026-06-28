@@ -64,3 +64,23 @@ def test_unknown_tool(config_file: Path, monkeypatch: pytest.MonkeyPatch) -> Non
 
 def test_mask_api_key() -> None:
     assert mask_api_key("sk-1234567890abcdef") == "sk-1****cdef"
+
+
+def test_deepseek_provider(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TEST_API_KEY", "sk-test")
+    path = tmp_path / "lumi.yaml"
+    path.write_text(
+        yaml.dump(
+            {
+                "llm": {
+                    "provider": "deepseek",
+                    "api_key": "${TEST_API_KEY}",
+                    "model": "deepseek-chat",
+                },
+            }
+        )
+    )
+    config = load_config(path)
+    assert config.llm.provider == "deepseek"
+    assert config.llm.base_url == "https://api.deepseek.com/v1"
+

@@ -11,6 +11,25 @@ import yaml
 BUILTIN_TOOLS = frozenset({"read_file", "write_file", "run_shell"})
 ENV_VAR_PATTERN = re.compile(r"^\$\{([A-Z_][A-Z0-9_]*)\}$")
 
+# User-facing provider names. All listed providers use the OpenAI-compatible adapter.
+PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
+    "openai": {"adapter": "openai", "base_url": "https://api.openai.com/v1"},
+    "deepseek": {"adapter": "openai", "base_url": "https://api.deepseek.com/v1"},
+    "ollama": {"adapter": "openai", "base_url": "http://localhost:11434/v1"},
+}
+
+
+def supported_providers() -> list[str]:
+    return sorted(PROVIDER_DEFAULTS)
+
+
+def resolve_adapter(provider: str) -> str:
+    defaults = PROVIDER_DEFAULTS.get(provider)
+    if defaults is None:
+        supported = ", ".join(supported_providers())
+        raise ConfigError(f"unsupported provider: {provider} (supported: {supported})")
+    return defaults["adapter"]
+
 
 class ConfigError(Exception):
     pass
@@ -116,9 +135,12 @@ def _parse_config(data: dict) -> LumiConfig:
     logging_data = data.get("logging", {})
     shell_data = tools_data.get("shell", {})
 
+    provider = str(llm_data.get("provider", ""))
+    defaults = PROVIDER_DEFAULTS.get(provider)
+
     llm = LLMConfig(
-        provider=llm_data.get("provider", ""),
-        base_url=llm_data.get("base_url", ""),
+        provider=provider,
+        base_url=str(llm_data.get("base_url") or (defaults["base_url"] if defaults else "")),
         api_key=llm_data.get("api_key", ""),
         model=llm_data.get("model", ""),
         temperature=float(llm_data.get("temperature", 0.7)),
@@ -152,8 +174,7 @@ def _parse_config(data: dict) -> LumiConfig:
 
 
 def validate_config(config: LumiConfig) -> None:
-    if config.llm.provider != "openai":
-        raise ConfigError(f"unsupported provider: {config.llm.provider} (v0.1 supports openai)")
+    resolve_adapter(config.llm.provider)
 
     _validate_url(config.llm.base_url)
 
