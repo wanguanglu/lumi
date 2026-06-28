@@ -51,6 +51,8 @@ lumi chat
 # or simply
 lumi
 
+Type `/quit` to leave chat, `/help` for commands.
+
 # List tools
 lumi tools list
 

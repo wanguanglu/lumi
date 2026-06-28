@@ -9,12 +9,6 @@ from urllib.parse import urlparse
 import yaml
 
 BUILTIN_TOOLS = frozenset({"Read", "Write", "Bash"})
-TOOL_ALIASES = {
-    "read_file": "Read",
-    "write_file": "Write",
-    "run_shell": "Bash",
-    "bash": "Bash",
-}
 ENV_VAR_PATTERN = re.compile(r"^\$\{([A-Z_][A-Z0-9_]*)\}$")
 
 # User-facing provider names. All listed providers use the OpenAI-compatible adapter.
@@ -140,7 +134,7 @@ def _parse_config(data: dict) -> LumiConfig:
     agent_data = data.get("agent", {})
     tools_data = data.get("tools", {})
     logging_data = data.get("logging", {})
-    bash_data = tools_data.get("bash", tools_data.get("shell", {}))
+    bash_data = tools_data.get("bash", {})
 
     provider = str(llm_data.get("provider", ""))
     defaults = PROVIDER_DEFAULTS.get(provider)
@@ -165,7 +159,6 @@ def _parse_config(data: dict) -> LumiConfig:
     enabled = tools_data.get("enabled")
     if enabled is None:
         enabled = ["Read", "Write", "Bash"]
-    enabled = [TOOL_ALIASES.get(name, name) for name in enabled]
 
     tools = ToolsConfig(
         enabled=list(enabled),

@@ -136,6 +136,25 @@ def chat(
     _run_chat(config, verbose)
 
 
+def _handle_chat_command(command: str) -> bool:
+    """Handle a slash command. Returns False when chat should exit."""
+    name = command[1:].strip().lower().split()[0]
+
+    if name in ("quit", "exit"):
+        console.print("[dim]Goodbye[/dim]")
+        return False
+
+    if name == "help":
+        console.print("[dim]Commands:[/dim]")
+        console.print("  /quit, /exit  Leave chat")
+        console.print("  /help         Show this help")
+        return True
+
+    console.print(f"[red]Unknown command:[/red] {command}")
+    console.print("[dim]Type /help for available commands[/dim]")
+    return True
+
+
 def _run_chat(config: Path | None, verbose: bool) -> None:
     try:
         agent = _build_agent(config, verbose)
@@ -143,7 +162,7 @@ def _run_chat(config: Path | None, verbose: bool) -> None:
         console.print(f"[red]Config error:[/red] {e}")
         raise typer.Exit(1) from e
 
-    console.print("[dim]Lumi chat (type 'exit' or 'quit' to leave)[/dim]")
+    console.print("[dim]Lumi chat (type /help for commands)[/dim]")
 
     while True:
         try:
@@ -154,9 +173,10 @@ def _run_chat(config: Path | None, verbose: bool) -> None:
 
         if not user_input:
             continue
-        if user_input.lower() in ("exit", "quit"):
-            console.print("[dim]Goodbye[/dim]")
-            break
+        if user_input.startswith("/"):
+            if not _handle_chat_command(user_input):
+                break
+            continue
 
         try:
             result = agent.chat(user_input)

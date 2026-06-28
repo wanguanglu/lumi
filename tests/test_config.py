@@ -84,29 +84,3 @@ def test_deepseek_provider(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert config.llm.provider == "deepseek"
     assert config.llm.base_url == "https://api.deepseek.com/v1"
 
-
-def test_legacy_tool_name_aliases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("TEST_API_KEY", "sk-test")
-    path = tmp_path / "lumi.yaml"
-    path.write_text(
-        yaml.dump(
-            {
-                "llm": {
-                    "provider": "openai",
-                    "base_url": "https://api.openai.com/v1",
-                    "api_key": "key",
-                    "model": "gpt-4o",
-                },
-                "tools": {
-                    "enabled": ["read_file", "run_shell"],
-                    "shell": {"timeout": 10, "allowed_commands": ["echo"]},
-                },
-            }
-        )
-    )
-    config = load_config(path)
-    assert config.tools.enabled == ["Read", "Bash"]
-    assert config.tools.bash_timeout == 10
-    assert config.tools.bash_allowed_commands == ["echo"]
-
-
