@@ -6,13 +6,50 @@ import httpx
 
 from lumi.config import LLMConfig
 from lumi.llm.base import LLMAuthError, LLMError, LLMRateLimitError, LLMResponse, TokenUsage
-from lumi.messages import AssistantMessage, Message, ToolCall, to_api_format
+from lumi.messages import Message, ToolCall, to_api_format
+
+
+def _extract_error_message(body: str) -> str | None:
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(data, dict):
+        return None
+
+    error = data.get("error")
+    if isinstance(error, dict) and error.get("message"):
+        return str(error["message"])
+    if isinstance(error, str):
+        return error
+    if data.get("message"):
+        return str(data["message"])
+    return None
+
+
+def _raise_api_error(status_code: int, body: str) -> None:
+    message = _extract_error_message(body) or f"API error {status_code}"
+    if status_code == 401:
+        raise LLMAuthError(message, status_code=status_code, body=body)
+    if status_code == 429:
+        raise LLMRateLimitError(message, status_code=status_code, body=body)
+    raise LLMError(message, status_code=status_code, body=body)
 
 
 class OpenAIProvider:
     def __init__(self, config: LLMConfig) -> None:
         self.config = config
         self._client = httpx.Client(timeout=config.timeout)
+
+    def close(self) -> None:
+        self._client.close()
+
+    def __enter__(self) -> OpenAIProvider:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
 
     def chat(
         self,
@@ -41,27 +78,39 @@ class OpenAIProvider:
         except httpx.HTTPError as e:
             raise LLMError(f"HTTP error: {e}") from e
 
-        if response.status_code == 401:
-            raise LLMAuthError("authentication failed", status_code=401, body=response.text)
-        if response.status_code == 429:
-            raise LLMRateLimitError("rate limit exceeded", status_code=429, body=response.text)
         if response.status_code >= 400:
+            _raise_api_error(response.status_code, response.text)
+
+        try:
+            data = response.json()
+        except json.JSONDecodeError as e:
             raise LLMError(
-                f"API error {response.status_code}",
+                "invalid JSON response",
                 status_code=response.status_code,
                 body=response.text,
-            )
+            ) from e
 
-        data = response.json()
         return self._parse_response(data)
 
     def _parse_response(self, data: dict) -> LLMResponse:
-        choice = data["choices"][0]["message"]
-        tool_calls: list[ToolCall] = []
+        raw_body = json.dumps(data, ensure_ascii=False)
 
-        for tc in choice.get("tool_calls") or []:
-            fn = tc["function"]
-            raw_args = fn.get("arguments") or "{}"
+        try:
+            choices = data["choices"]
+            if not choices:
+                raise KeyError("empty choices")
+            message = choices[0]["message"]
+        except (KeyError, IndexError, TypeError) as e:
+            raise LLMError(f"invalid API response: {e}", body=raw_body) from e
+
+        tool_calls: list[ToolCall] = []
+        for tc in message.get("tool_calls") or []:
+            try:
+                fn = tc["function"]
+                raw_args = fn.get("arguments") or "{}"
+            except (KeyError, TypeError) as e:
+                raise LLMError(f"invalid tool call in response: {e}", body=raw_body) from e
+
             try:
                 arguments = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
             except json.JSONDecodeError:
@@ -81,11 +130,8 @@ class OpenAIProvider:
             )
 
         return LLMResponse(
-            content=choice.get("content"),
+            content=message.get("content"),
             tool_calls=tool_calls,
             usage=usage,
             raw=data,
         )
-
-    def to_assistant_message(self, response: LLMResponse) -> AssistantMessage:
-        return AssistantMessage(content=response.content, tool_calls=response.tool_calls)

@@ -41,10 +41,9 @@ def app_callback(
 
 
 def _format_llm_error(error: LLMError) -> str:
-    message = str(error)
-    if error.body:
-        message = f"{message}\n{error.body}"
-    return message
+    if error.body and str(error) not in error.body:
+        return f"{error}\n{error.body}"
+    return str(error)
 
 
 def _setup_logging(level: str) -> None:
