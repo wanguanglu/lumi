@@ -68,3 +68,29 @@ def test_extract_text_and_server_activity() -> None:
     ]
     assert has_server_tool_activity(content)
     assert extract_text_blocks(content) == "answer"
+
+
+def test_to_anthropic_messages_uses_raw_blocks() -> None:
+    search_blocks = [
+        {"type": "server_tool_use", "id": "s1", "name": "web_search"},
+        {
+            "type": "web_search_tool_result",
+            "tool_use_id": "s1",
+            "content": [{"title": "Python 3.13", "url": "https://example.com"}],
+        },
+    ]
+    messages = [
+        UserMessage(content="search python 3.13"),
+        AssistantMessage(raw_blocks=search_blocks),
+        AssistantMessage(
+            content="Python 3.13 adds...",
+            raw_blocks=[{"type": "text", "text": "Python 3.13 adds..."}],
+        ),
+        UserMessage(content="what was the first link?"),
+    ]
+    api_messages = to_anthropic_messages(messages)
+    assert api_messages[0]["content"][0]["text"] == "search python 3.13"
+    assert api_messages[1]["content"] == search_blocks
+    assert api_messages[2]["content"][0]["text"] == "Python 3.13 adds..."
+    assert api_messages[3]["content"][0]["text"] == "what was the first link?"
+

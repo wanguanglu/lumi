@@ -4,11 +4,10 @@ import json
 
 import pytest
 
-from lumi.config import LLMConfig, ServerToolsConfig
+from lumi.config import LLMConfig
 from lumi.llm.anthropic import AnthropicProvider
 from lumi.llm.base import LLMError
 from lumi.messages import SystemMessage, UserMessage
-from lumi.tools.server import create_server_tool_registry
 
 
 @pytest.fixture
@@ -19,11 +18,6 @@ def llm_config() -> LLMConfig:
         api_key="test-key",
         model="deepseek-v4-pro",
     )
-
-
-@pytest.fixture
-def server_tools() -> object:
-    return create_server_tool_registry(ServerToolsConfig(enabled=["WebSearch"]))
 
 
 def test_anthropic_text_response(httpx_mock, llm_config: LLMConfig) -> None:
@@ -100,6 +94,9 @@ def test_anthropic_server_search_inner_loop(httpx_mock, llm_config: LLMConfig) -
 
     assert response.content == "Based on search, here is the answer."
     assert response.server_tool_uses == 1
+    assert len(response.prior_assistant_blocks) == 1
+    assert response.prior_assistant_blocks[0][0]["type"] == "server_tool_use"
+    assert response.raw_blocks == [{"type": "text", "text": "Based on search, here is the answer."}]
     assert len(httpx_mock.get_requests()) == 2
 
 

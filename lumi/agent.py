@@ -4,7 +4,7 @@ import time
 
 from lumi.config import AgentConfig, resolve_adapter
 from lumi.events import EventBus, measure_ms
-from lumi.llm.base import LLM
+from lumi.llm.base import LLM, LLMResponse
 from lumi.messages import (
     AssistantMessage,
     Message,
@@ -85,12 +85,7 @@ class Agent:
                 response = self.llm.chat(context, tools=tool_schemas)
                 self.events.emit("llm_response", response=response)
 
-                self._messages.append(
-                    AssistantMessage(
-                        content=response.content,
-                        tool_calls=response.tool_calls,
-                    )
-                )
+                self._append_assistant_response(response)
 
                 if not response.tool_calls:
                     result = response.content or ""
@@ -133,3 +128,14 @@ class Agent:
         if self._adapter == "anthropic":
             return self.tools.schemas_anthropic() + self._server_tool_schemas
         return self._tool_schemas
+
+    def _append_assistant_response(self, response: LLMResponse) -> None:
+        for blocks in response.prior_assistant_blocks:
+            self._messages.append(AssistantMessage(raw_blocks=blocks))
+        self._messages.append(
+            AssistantMessage(
+                content=response.content,
+                tool_calls=response.tool_calls,
+                raw_blocks=response.raw_blocks,
+            )
+        )

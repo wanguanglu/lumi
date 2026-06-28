@@ -28,6 +28,7 @@ class AssistantMessage:
     role: Literal["assistant"] = "assistant"
     content: str | None = None
     tool_calls: list[ToolCall] = field(default_factory=list)
+    raw_blocks: list[dict] | None = None
 
 
 @dataclass

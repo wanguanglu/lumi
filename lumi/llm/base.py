@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from lumi.messages import Message, ToolCall
@@ -20,6 +20,8 @@ class LLMResponse:
     usage: TokenUsage | None
     raw: dict
     server_tool_uses: int = 0
+    raw_blocks: list[dict] | None = None
+    prior_assistant_blocks: list[list[dict]] = field(default_factory=list)
 
 
 class LLMError(Exception):

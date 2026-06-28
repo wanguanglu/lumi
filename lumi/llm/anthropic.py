@@ -8,18 +8,18 @@ from lumi.config import LLMConfig
 from lumi.events import EventBus
 from lumi.llm.base import LLMError, LLMResponse
 from lumi.llm.messages_anthropic import (
-    build_anthropic_request,
+    build_anthropic_request_body,
     count_search_results,
     count_server_tool_uses,
     extract_client_tool_calls,
     extract_text_blocks,
     has_server_tool_activity,
     parse_anthropic_response,
+    split_system_messages,
     to_anthropic_messages,
 )
 from lumi.llm.openai import _raise_api_error
 from lumi.messages import Message
-from lumi.tools.server.registry import ServerToolRegistry
 
 MAX_INNER_STEPS = 5
 
@@ -30,11 +30,9 @@ class AnthropicProvider:
     def __init__(
         self,
         config: LLMConfig,
-        server_tools: ServerToolRegistry | None = None,
         events: EventBus | None = None,
     ) -> None:
         self.config = config
-        self.server_tools = server_tools or ServerToolRegistry()
         self.events = events
         self._client = httpx.Client(timeout=config.timeout)
 
@@ -52,12 +50,15 @@ class AnthropicProvider:
         messages: list[Message],
         tools: list[dict] | None = None,
     ) -> LLMResponse:
+        system, _ = split_system_messages(messages)
         anthropic_messages = to_anthropic_messages(messages)
         total_server_uses = 0
+        prior_assistant_blocks: list[list[dict]] = []
 
         for _ in range(MAX_INNER_STEPS):
-            body = build_anthropic_request(messages, self.config, tools)
-            body["messages"] = anthropic_messages
+            body = build_anthropic_request_body(
+                self.config, anthropic_messages, tools, system=system
+            )
             data = self._post(body)
             content = data.get("content") or []
             stop_reason = data.get("stop_reason")
@@ -82,18 +83,19 @@ class AnthropicProvider:
             if client_calls:
                 response = parse_anthropic_response(data)
                 response.server_tool_uses = total_server_uses
+                response.prior_assistant_blocks = prior_assistant_blocks
                 return response
 
-            if has_server_tool_activity(content) and stop_reason != "end_turn":
+            if has_server_tool_activity(content) and (
+                stop_reason != "end_turn" or not extract_text_blocks(content)
+            ):
                 anthropic_messages.append({"role": "assistant", "content": content})
-                continue
-
-            if has_server_tool_activity(content) and not extract_text_blocks(content):
-                anthropic_messages.append({"role": "assistant", "content": content})
+                prior_assistant_blocks.append(list(content))
                 continue
 
             response = parse_anthropic_response(data)
             response.server_tool_uses = total_server_uses
+            response.prior_assistant_blocks = prior_assistant_blocks
             return response
 
         raise LLMError(f"max inner steps ({MAX_INNER_STEPS}) exceeded for server tools")

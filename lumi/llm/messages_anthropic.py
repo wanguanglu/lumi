@@ -61,16 +61,17 @@ def to_anthropic_messages(messages: list[Message]) -> list[dict]:
     return result
 
 
-def build_anthropic_request(
-    messages: list[Message],
+def build_anthropic_request_body(
     config: LLMConfig,
+    anthropic_messages: list[dict],
     tools: list[dict] | None,
+    *,
+    system: str = "",
 ) -> dict:
-    system, _ = split_system_messages(messages)
     body: dict = {
         "model": config.model,
         "max_tokens": config.max_tokens,
-        "messages": to_anthropic_messages(messages),
+        "messages": anthropic_messages,
         "temperature": config.temperature,
     }
     if system:
@@ -78,6 +79,20 @@ def build_anthropic_request(
     if tools:
         body["tools"] = tools
     return body
+
+
+def build_anthropic_request(
+    messages: list[Message],
+    config: LLMConfig,
+    tools: list[dict] | None,
+) -> dict:
+    system, _ = split_system_messages(messages)
+    return build_anthropic_request_body(
+        config,
+        to_anthropic_messages(messages),
+        tools,
+        system=system,
+    )
 
 
 def extract_text_blocks(content: list[dict]) -> str:
@@ -139,10 +154,14 @@ def parse_anthropic_response(data: dict) -> LLMResponse:
         usage=usage,
         raw=data,
         server_tool_uses=count_server_tool_uses(content),
+        raw_blocks=list(content) if content else None,
     )
 
 
 def _assistant_to_blocks(message: AssistantMessage) -> list[dict]:
+    if message.raw_blocks is not None:
+        return list(message.raw_blocks)
+
     blocks: list[dict] = []
     if message.content:
         blocks.append({"type": "text", "text": message.content})

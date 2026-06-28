@@ -64,7 +64,7 @@ def _build_agent(config_path: Path | None, verbose: bool) -> Agent:
 
     server_tools = create_server_tool_registry(config.tools.server)
     return Agent(
-        llm=create_llm(config.llm, server_tools=server_tools, events=events),
+        llm=create_llm(config.llm, events=events),
         tools=create_tool_registry(config.tools),
         server_tools=server_tools,
         config=config.agent,
