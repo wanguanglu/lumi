@@ -71,3 +71,36 @@ def test_truncate_expands_to_complete_tool_turn() -> None:
     assert not isinstance(truncated[1], ToolMessage)
     assert truncated[-1].content == "latest"
 
+
+def test_truncate_keeps_search_turn_with_raw_blocks() -> None:
+    search_blocks = [
+        {"type": "server_tool_use", "id": "s1", "name": "web_search"},
+        {
+            "type": "web_search_tool_result",
+            "tool_use_id": "s1",
+            "content": [{"title": "A"}],
+        },
+    ]
+    messages = [
+        SystemMessage(content="sys"),
+        UserMessage(content="old question"),
+        AssistantMessage(content="old answer"),
+        UserMessage(content="search topic"),
+        AssistantMessage(raw_blocks=search_blocks),
+        AssistantMessage(
+            content="here are results",
+            raw_blocks=[{"type": "text", "text": "here are results"}],
+        ),
+        UserMessage(content="follow up"),
+    ]
+    truncated = truncate_messages(messages, max_count=5)
+
+    assert isinstance(truncated[0], SystemMessage)
+    assert not isinstance(truncated[1], ToolMessage)
+    assert truncated[-1].content == "follow up"
+    raw_block_turn = [
+        message for message in truncated if getattr(message, "raw_blocks", None) == search_blocks
+    ]
+    assert len(raw_block_turn) == 1
+
+

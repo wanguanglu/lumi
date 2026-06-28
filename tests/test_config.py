@@ -130,3 +130,23 @@ def test_server_tools_require_anthropic(tmp_path: Path, monkeypatch: pytest.Monk
         load_config(path)
 
 
+def test_unknown_server_tool_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TEST_API_KEY", "sk-test")
+    path = tmp_path / "lumi.yaml"
+    path.write_text(
+        yaml.dump(
+            {
+                "llm": {
+                    "provider": "deepseek-anthropic",
+                    "api_key": "key",
+                    "model": "deepseek-v4-pro",
+                },
+                "tools": {
+                    "server": {"enabled": ["Unknown"]},
+                },
+            }
+        )
+    )
+    with pytest.raises(ConfigError, match="unknown server tool"):
+        load_config(path)
+

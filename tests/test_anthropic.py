@@ -5,7 +5,8 @@ import json
 import pytest
 
 from lumi.config import LLMConfig
-from lumi.llm.anthropic import AnthropicProvider
+from lumi.events import EventBus
+from lumi.llm.anthropic import AnthropicProvider, MAX_INNER_STEPS
 from lumi.llm.base import LLMError
 from lumi.messages import SystemMessage, UserMessage
 
@@ -125,3 +126,87 @@ def test_anthropic_uses_x_api_key_header(httpx_mock, llm_config: LLMConfig) -> N
 
     request = httpx_mock.get_requests()[0]
     assert request.headers["x-api-key"] == "test-key"
+
+
+def _search_only_response() -> dict:
+    return {
+        "content": [
+            {"type": "server_tool_use", "id": "srv_1", "name": "web_search"},
+            {
+                "type": "web_search_tool_result",
+                "tool_use_id": "srv_1",
+                "content": [{"title": "Result", "url": "https://example.com"}],
+            },
+        ],
+        "stop_reason": "tool_use",
+    }
+
+
+def test_anthropic_max_inner_steps_exceeded(httpx_mock, llm_config: LLMConfig) -> None:
+    for _ in range(MAX_INNER_STEPS):
+        httpx_mock.add_response(json=_search_only_response())
+
+    provider = AnthropicProvider(llm_config)
+    try:
+        with pytest.raises(LLMError, match="max inner steps"):
+            provider.chat([UserMessage(content="keep searching")])
+    finally:
+        provider.close()
+
+    assert len(httpx_mock.get_requests()) == MAX_INNER_STEPS
+
+
+def test_anthropic_search_then_client_tool(httpx_mock, llm_config: LLMConfig) -> None:
+    httpx_mock.add_response(json=_search_only_response())
+    httpx_mock.add_response(
+        json={
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": "toolu_1",
+                    "name": "Write",
+                    "input": {"path": "notes.md", "content": "summary"},
+                }
+            ],
+            "stop_reason": "tool_use",
+        }
+    )
+
+    provider = AnthropicProvider(llm_config)
+    try:
+        response = provider.chat([UserMessage(content="search and write notes")], tools=[])
+    finally:
+        provider.close()
+
+    assert len(response.prior_assistant_blocks) == 1
+    assert response.prior_assistant_blocks[0][0]["type"] == "server_tool_use"
+    assert len(response.tool_calls) == 1
+    assert response.tool_calls[0].name == "Write"
+    assert len(httpx_mock.get_requests()) == 2
+
+
+def test_anthropic_server_tool_end_event_uses_block_name(
+    httpx_mock, llm_config: LLMConfig
+) -> None:
+    httpx_mock.add_response(json=_search_only_response())
+    httpx_mock.add_response(
+        json={
+            "content": [{"type": "text", "text": "done"}],
+            "stop_reason": "end_turn",
+        }
+    )
+
+    events = EventBus()
+    ends: list[dict] = []
+    events.on("server_tool_end", lambda **kwargs: ends.append(kwargs))
+
+    provider = AnthropicProvider(llm_config, events=events)
+    try:
+        provider.chat([UserMessage(content="news")])
+    finally:
+        provider.close()
+
+    assert len(ends) == 1
+    assert ends[0]["name"] == "web_search"
+    assert ends[0]["results_count"] == 1
+

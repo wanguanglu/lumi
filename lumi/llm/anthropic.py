@@ -66,16 +66,20 @@ class AnthropicProvider:
             total_server_uses += server_uses
 
             if server_uses and self.events:
+                server_names: list[str] = []
                 for block in content:
-                    if block.get("type") == "server_tool_use":
-                        self.events.emit(
-                            "server_tool_start",
-                            name=block.get("name", "web_search"),
-                            type=block.get("type", ""),
-                        )
+                    if block.get("type") != "server_tool_use":
+                        continue
+                    name = block.get("name", "web_search")
+                    server_names.append(name)
+                    self.events.emit(
+                        "server_tool_start",
+                        name=name,
+                        type=block.get("type", ""),
+                    )
                 self.events.emit(
                     "server_tool_end",
-                    name="web_search",
+                    name=server_names[0] if server_names else "web_search",
                     results_count=count_search_results(content),
                 )
 
